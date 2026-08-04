@@ -1,18 +1,53 @@
-# spacy
+<h1 align="center">spacy</h1>
+<p align="center">
+  <b>Where your disk space went.</b><br>
+  Pick a partition → the 10 biggest folders → click to drill in → open it in your file manager.
+</p>
+<p align="center">
+  <code>v0.1.0</code> · Linux desktop · built on <a href="https://github.com/riagentic/aio">aio</a> · <a href="LICENSE">MIT</a>
+</p>
 
-An [aio](https://github.com/riagentic/aio) app (counter template).
+![spacy](docs/screenshot.png)
 
-> **Cloned this repo?** The framework link, `.env`, and `node_modules` are
-> gitignored — run `am fix` once (after installing `am` via the aio install
-> script) to repair them, then `deno task dev` works.
+## 🎯 Good for
+
+- 💥 **"Disk full"** — find the missing 20 GB in three clicks instead of
+  guessing
+- 🧹 Old kernels in `/boot`, stale caches, forgotten `node_modules`, VM images,
+  downloads
+- 🧭 Deciding **what** to delete — then deleting it yourself, in your own file
+  manager
+- 👀 Only lists partitions you can actually free space on: kernel/pseudo mounts,
+  snap & AppImage bundles, ISO images and encrypted overlays are hidden
+- 🔒 **Read-only by construction.** `df`, `du` and `xdg-open` are the only
+  things it ever runs — a test fails the build if any source file could delete,
+  move or write
+
+## 🚀 Run it
 
 ```sh
-deno task dev              # run — browser (also dev:browser, dev:electron, dev:android)
-deno task test             # run the starter test
-deno task compile          # build a single binary (also compile:browser)
-deno task compile:electron # build a desktop AppImage
-deno task compile:android  # build an Android APK (needs ANDROID_HOME + Gradle)
+curl -fsSL https://raw.githubusercontent.com/riagentic/aio/main/run.sh | sh -s riagentic/spacy
 ```
 
-State lives in `src/cell.ts`, UI in `src/App.tsx`, entry in `src/app.ts`.
-Manage a running app with `deno task am` (status, state, logs, …).
+One line — installs what's missing, clones, builds, opens the window.
+
+Or clone it yourself:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/riagentic/aio/main/install.sh | sh   # once: Deno + am
+git clone https://github.com/riagentic/spacy && cd spacy
+am fix && deno task dev
+```
+
+Needs GNU `df`/`du` and `xdg-open` (any Linux desktop).
+
+## 🛠 Develop
+
+```sh
+deno task test             # unit + cell + UI tests, against a real temp tree
+deno task lint             # aio project linter
+deno task compile:electron # → spacy-x86_64.AppImage
+```
+
+`src/disk.ts` pure domain · `src/disk.server.ts` the only IO · `src/cell.ts`
+state · `src/App.tsx` + `src/ui/` view. See [CLAUDE.md](CLAUDE.md).
