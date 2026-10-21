@@ -4,7 +4,7 @@
   Pick a partition → the 10 biggest folders → click to drill in → open it in your file manager.
 </p>
 <p align="center">
-  <code>v0.1.0</code> · Linux desktop · built on <a href="https://github.com/riagentic/aio">aio</a> · <a href="LICENSE">MIT</a>
+  <code>v0.1.1</code> · Linux desktop · built on <a href="https://github.com/riagentic/aio">aio</a> · <a href="LICENSE">MIT</a>
 </p>
 
 ![spacy](docs/screenshot.png)
@@ -46,7 +46,7 @@ Needs GNU `df`/`du` and `xdg-open` (any Linux desktop).
 ```sh
 deno task test             # unit + cell + UI tests, against a real temp tree
 deno task lint             # aio project linter
-deno task compile:electron # → spacy-x86_64.AppImage
+deno task compile          # → dist/spacy-<version>-x86_64.AppImage
 ```
 
 `src/disk.ts` pure domain · `src/disk.server.ts` the only IO · `src/cell.ts`

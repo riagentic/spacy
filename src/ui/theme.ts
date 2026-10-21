@@ -20,8 +20,8 @@ export const t = {
   xl: "1.5rem", //    24px — the wordmark
 } as const;
 
-/** Global reset. Rendered through AIR (`<style>` in App) rather than injected
- *  via `ui.head`, so it applies in every client — electron, browser, tests.
+/** Global reset, delivered once through `ui.head` (src/app.ts) so it applies
+ *  before the bundle mounts, in dev and in the packaged app alike.
  *
  *  Two things it must kill, both of which showed as a white frame in Electron:
  *  the default 8px `body` margin (white html gutter around a dark app), and

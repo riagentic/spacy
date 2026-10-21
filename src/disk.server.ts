@@ -25,65 +25,60 @@ const fail = (cmd: string, code: number, err: string): never => {
   );
 };
 
+const DF_TIMEOUT_MS = 10_000;
+
 /** Every real partition with its utilization. */
 export const listPartitions = async (): Promise<Partition[]> => {
   // -P: stable one-line POSIX records · -T: fstype (used to drop pseudo-fs) · -B1: bytes
-  const { code, out, err } = await run("df", ["-PT", "-B1"]);
+  // Bounded: a dead network mount (NFS/CIFS) blocks df forever — possibly in
+  // an unkillable state, so the deadline is raced, not just signalled.
+  const signal = AbortSignal.timeout(DF_TIMEOUT_MS);
+  const deadline = new Promise<null>((r) =>
+    signal.addEventListener("abort", () => r(null), { once: true })
+  );
+  const res = await Promise.race([run("df", ["-PT", "-B1"], signal), deadline]);
+  if (res === null || signal.aborted) {
+    throw new Error(
+      `df timed out after ${
+        DF_TIMEOUT_MS / 1000
+      }s — a network mount is not responding`,
+    );
+  }
+  const { code, out, err } = res;
   if (!out.trim()) fail("df", code, err);
   return parseDf(out);
 };
 
-// A newer scan supersedes the running one — abort the stale `du` instead of
-// letting it burn IO for a folder nobody is looking at any more.
-let inFlight: AbortController | null = null;
-
 /**
- * The `top` biggest folders directly inside `path`.
- * Returns `null` when a newer scan superseded this one.
+ * The `top` biggest folders directly inside `path`. Aborting `signal` kills
+ * the `du` process (the cell passes `s.$signal`, so a newer navigation or
+ * Cancel stops the IO, not just the result).
  */
 export const scanFolders = async (
   path: string,
+  signal: AbortSignal,
   top: number = TOP_N,
-): Promise<Entry[] | null> => {
-  inFlight?.abort();
-  const scan = new AbortController();
-  inFlight = scan;
-  try {
-    // -x: never cross into another mount · depth 1: direct children only · bytes
-    const { code, out, err } = await run(
-      "du",
-      ["-x", "--max-depth=1", "--block-size=1", path],
-      scan.signal,
-    );
-    // du exits non-zero on unreadable subtrees but still reports everything it
-    // could measure — partial truth beats an error screen.
-    if (!out.trim()) fail("du", code, err);
-    return parseDu(out, path, top);
-  } catch (e) {
-    if (scan.signal.aborted) return null;
-    throw e;
-  } finally {
-    if (inFlight === scan) inFlight = null;
-  }
+): Promise<Entry[]> => {
+  // -x: never cross into another mount · depth 1: direct children only · bytes
+  const { code, out, err } = await run(
+    "du",
+    ["-x", "--max-depth=1", "--block-size=1", path],
+    signal,
+  );
+  // du exits non-zero on unreadable subtrees but still reports everything it
+  // could measure — partial truth beats an error screen.
+  if (!out.trim()) fail("du", code, err);
+  return parseDu(out, path, top);
 };
-
-/** Stop the running scan (the user changed their mind, or navigated away). */
-export const cancelScan = (): void => {
-  inFlight?.abort();
-};
-
 /**
  * Show `path` in the desktop's own file manager (Cinnamon → nemo, GNOME →
- * nautilus, …). `xdg-open` is the standard indirection for "whatever the user
- * configured"; it only opens a window.
+ * nautilus, …) via aio's `openExternal` — `xdg-open` on Linux, the standard
+ * indirection for "whatever the user configured" (dep/aio/docs/state/methods.md
+ * § Long-running server work). It only opens a window, and rejects when the opener fails.
  */
 export const revealInFileManager = async (path: string): Promise<void> => {
   const info = await Deno.stat(path).catch(() => null);
   if (!info?.isDirectory) throw new Error(`not a folder: ${path}`);
-  const child = new Deno.Command("xdg-open", {
-    args: [path],
-    stdout: "null",
-    stderr: "null",
-  }).spawn();
-  child.unref(); // the file manager outlives spacy
+  const { openExternal } = await import("aio/server");
+  await openExternal(path);
 };

@@ -38,9 +38,10 @@ export function Trail({ trail, onOpen, onUp, onReveal }: Props) {
           key={seg.path}
           style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
         >
-          {i > 0 && <span style={{ color: c.line }}>›</span>}
+          {i > 0 && <span style={{ color: c.dim }}>›</span>}
           <button
             type="button"
+            t={`trail-${seg.path}`}
             onClick={() => onOpen(seg.path)}
             style={{
               ...button,

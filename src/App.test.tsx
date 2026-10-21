@@ -2,7 +2,7 @@
 // (dep/aio/docs/testing/ui-testing.md). Folder scans run against a real temp
 // tree so they are instant and deterministic.
 import { assert } from "@std/assert";
-import { testUI } from "aio/testing";
+import { testUI, type UISurfaceNode } from "aio/testing";
 import App from "./App.tsx";
 import { disk } from "./cell.ts";
 
@@ -18,12 +18,16 @@ const fixture = async () => {
   return root;
 };
 
-const names = (ui: { surface: () => unknown }, component: string): string[] => {
-  const walk = (
-    node: any,
-  ): any[] => [node, ...(node.children ?? []).flatMap(walk)];
+const names = (
+  ui: { surface: () => UISurfaceNode },
+  component: string,
+): string[] => {
+  const walk = (node: UISurfaceNode): UISurfaceNode[] => [
+    node,
+    ...node.children.flatMap(walk),
+  ];
   const found = walk(ui.surface()).find((n) => n.component === component);
-  return (found?.elements ?? []).map((e: { name: string }) => e.name);
+  return (found?.elements ?? []).map((e) => e.name);
 };
 
 testUI(App, "shows utilization for every partition", async (ui) => {
@@ -110,4 +114,56 @@ testUI(
 testUI(App, "states plainly that it never deletes", async (ui) => {
   await ui.settle();
   assert(ui.html().includes("never deletes anything"));
+});
+
+testUI(
+  App,
+  "Cancel stops a long scan and returns to the overview",
+  async (ui) => {
+    await disk.refresh();
+    await ui.settle();
+    ui.Partitions["partition-/"].click(); // minutes of real du — cancelled below
+    await ui.waitFor(() => disk.scanning);
+    assert(ui.html().includes("scanning /"));
+    ui.App.cancel.click();
+    await ui.expectCell(disk, (s) => s.path === null && s.scanning === false);
+    assert(ui.html().includes("Pick a partition"));
+  },
+);
+
+testUI(App, "the breadcrumb jumps straight back to any level", async (ui) => {
+  const root = await fixture();
+  await disk.refresh();
+  await disk.open(`${root}/nested/deep`);
+  await ui.settle();
+  ui.Trail[`trail-${root}`].click();
+  await ui.expectCell(disk, (s) => s.path === root && s.scanning === false);
+  assert(names(ui, "Folders").includes("open-big"));
+  await Deno.remove(root, { recursive: true });
+});
+
+testUI(App, "a failed scan is shown, not swallowed", async (ui) => {
+  await disk.open("/nonexistent-spacy-path");
+  await ui.settle();
+  assert(ui.App.error.text.includes("du failed"), ui.App.error.text);
+});
+
+testUI(App, "⟳ Refresh measures the partitions", async (ui) => {
+  ui.App.refresh.click();
+  await ui.expectCell(disk, (s) => s.partitions.length > 0);
+  assert(names(ui, "Partitions").some((n) => n.startsWith("partition-")));
+});
+
+testUI(App, "a failed refresh is shown, not swallowed", async (ui) => {
+  // No `df` on PATH — the same path a missing or broken df takes.
+  const path = Deno.env.get("PATH") ?? "";
+  Deno.env.set("PATH", "/nonexistent-spacy-bin");
+  try {
+    ui.App.refresh.click();
+    await ui.expectCell(disk, (s) => s.error !== null);
+  } finally {
+    Deno.env.set("PATH", path);
+  }
+  await ui.settle();
+  assert(ui.App.error.text.includes("df"), ui.App.error.text);
 });

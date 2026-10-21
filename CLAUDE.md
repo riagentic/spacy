@@ -23,13 +23,14 @@ code in this repository.
 ## ⚙️ Commands
 
 ```sh
-deno task dev              # run (browser client); dev:electron, dev:android, dev:cli, dev:service
+deno task dev              # run the electron app (flags pass through: --client=browser, --expose)
 deno task test             # deno test -A
-deno task lint             # aiol — the aio project linter (style/coupling/perf); --safe-fix available
+deno task check            # deno check + am check (type-check ≠ bundle-check)
+deno task lint             # deno lint + aiol — the aio project linter (style/coupling/perf); --safe-fix available
 deno task doctor           # config sanity (run first when anything is weird)
 deno task am <cmd>         # app manager: status, state, dispatch, surface, trigger, logs, migrations
-deno task compile:electron # AppImage; also compile (binary), compile:android, compile:cli
-deno task install:electron # required for electron dev — never `npm install electron` (breaks Deno symlinks)
+deno task compile          # AppImage → dist/ (deno.json "client": electron)
+deno task install:electron # pre-fetch Electron (dev/compile also auto-install) — never `npm install electron`
 ```
 
 Single test file: `deno test -A src/cell.test.ts` · single case:
@@ -40,9 +41,9 @@ fresh clone run `am fix` once.
 
 ## 🏗️ Architecture
 
-Framework lives at `dep/aio` → `~/.local/lib/aio-versions/v1.0.0-alpha42`
-(pinned by `aioVersion` in `deno.json`). Its own `CLAUDE.md` and `docs/` there
-are the authority — `docs/basics/pitfalls.md`, `docs/state/`,
+Framework lives at `dep/aio` → `~/.local/lib/aio-versions/v1.0.23-beta` (pinned
+by `aioVersion` in `deno.json`). Its own `CLAUDE.md` and `docs/` there are the
+authority — `docs/basics/pitfalls.md`, `docs/state/`,
 `docs/testing/ui-testing.md`, `docs/clients/electron.md`.
 
 One state model drives server, persistence, and UI:
@@ -51,18 +52,23 @@ One state model drives server, persistence, and UI:
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/disk.ts`             | Pure domain — `parseDf`/`parseDu`, `mountOf`/`parentOf`/`trailOf`. No IO, browser-safe.                                                         |
 | `src/disk.server.ts`      | The only IO: `df`, `du`, `xdg-open`. **Dynamic-imported** from cell methods so it never enters the browser bundle (`docs/build/imports.md` §2). |
-| `src/cell.ts`             | `disk` cell — `refresh`/`open`/`reveal`/`clear`. `persist: "none"` (live facts go stale).                                                       |
+| `src/cell.ts`             | `disk` cell — `refresh`/`open`/`reveal`/`cancel`. `persist: "none"`, `cancelOn`, `long`, `args`.                                                |
 | `src/App.tsx` + `src/ui/` | Presentational components (props in, callbacks out) + `theme.ts`. Framework mounts `App.tsx`.                                                   |
-| `src/app.ts`              | Entry — `aio.run({ client: "electron", ui: {…} })`, then one `disk.refresh()`.                                                                  |
+| `src/app.ts`              | Entry — `aio.run({ appId, ui: {…}, onStart: disk.refresh })`.                                                                                   |
 | `src/client.ts`           | Thin CLI client over WS (`dev:remote:cli`), from the template.                                                                                  |
+| `src/icon.svg` → `.png`   | App icon. aio reads only the 512 px PNG; re-render: `inkscape src/icon.svg -w 512 -h 512 -o src/icon.png`.                                      |
 
 Flow: method call → reduce (immer draft) → broadcast delta to clients → effects.
 JSX is aio's own AIR renderer (`jsxImportSource: "aio"`), not React.
 
 Scan semantics worth knowing: `du -x --max-depth=1` is one process per folder
-view; a newer navigation aborts the running one (`inFlight` in `disk.server.ts`)
-and `open` drops results whose `path` is no longer current. `du` on a full
-partition can take minutes — that's inherent, the UI shows `scanning …`.
+view. `cancelOn: { open: ["self", "disk:cancel"] }` aborts the running `open`
+(and kills its `du` via `s.$signal`) on a newer navigation or Cancel;
+`long:
+["open"]` lifts the method timeout — `du` on a full partition can take
+minutes, the UI shows `scanning …`. `df` is raced against a 10 s deadline (a
+dead NFS/CIFS mount blocks it forever). `args:` refuses any non-absolute path
+from the wire.
 
 ## 🧭 Conventions that bite
 
@@ -96,7 +102,7 @@ partition can take minutes — that's inherent, the UI shows `scanning …`.
   `disk.open(tmpDir)` instead, or click and immediately supersede.
 - `reveal`/"File Manager" is asserted present, never clicked — it opens a real
   window.
-- Live app: `am surface 0 --json` to observe, `am trigger 0 "<path>" <action>`
+- Live app: `am surface --json` to observe, `am trigger <idx> "<path>" <action>`
   to act.
 - Always dispatch-test methods — rendering initial state proves nothing.
 

@@ -1,0 +1,28 @@
+<!-- spacy app icon — source of src/icon.png (aio reads only the PNG).
+     Ring = partition utilization, bars = top folders ranked. Palette: src/ui/theme.ts.
+     Re-render: inkscape src/icon.svg -w 512 -h 512 -o src/icon.png -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512"
+  height="512">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1b2634" />
+      <stop offset="1" stop-color="#0b1017" />
+    </linearGradient>
+    <linearGradient id="arc" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5eead4" />
+      <stop offset="1" stop-color="#14b8a6" />
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#tile)" />
+  <rect x="16.5" y="16.5" width="479" height="479" rx="111.5" fill="none"
+    stroke="#243244" stroke-width="1" />
+  <g fill="none" stroke-width="44" transform="rotate(-90 256 256)">
+    <circle cx="256" cy="256" r="150" stroke="#243244" />
+    <!-- 72% used: 0.72 × 2π·150 ≈ 678.6 -->
+    <circle cx="256" cy="256" r="150" stroke="url(#arc)" stroke-linecap="round"
+      stroke-dasharray="678.6 942.5" />
+  </g>
+  <rect x="188" y="202" width="136" height="26" rx="13" fill="#2dd4bf" />
+  <rect x="188" y="243" width="100" height="26" rx="13" fill="#1f9d8f" />
+  <rect x="188" y="284" width="64" height="26" rx="13" fill="#8ba0b8" />
+</svg>

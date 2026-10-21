@@ -6,7 +6,7 @@ import { formatBytes } from "./format.ts";
 import { Folders } from "./ui/Folders.tsx";
 import { Partitions } from "./ui/Partitions.tsx";
 import { Trail } from "./ui/Trail.tsx";
-import { button, c, card, clip, globalCSS, t } from "./ui/theme.ts";
+import { button, c, card, clip, t } from "./ui/theme.ts";
 
 export default function App() {
   const { mount, path, partitions, entries, scanning, error } = disk;
@@ -122,18 +122,6 @@ export default function App() {
           ? `, ${formatBytes(partition.free)} free on ${partition.mount}`
           : ""}. It never deletes anything.
       </footer>
-
-      {
-        /* Belt to `ui.head`'s braces. aio ≤ alpha43 built the packaged Electron
-          `<head>` from a second, hand-rolled shell that dropped `ui.head`, so
-          the reset applied in `deno task dev` and vanished in the AppImage
-          (white frame, light scrollbars). Fixed upstream, but this repo pins
-          alpha42 — rendering it here too makes the app immune to which shell
-          it lands in. Drop once `aioVersion` carries the fix.
-          Last child: its text would otherwise crowd out the observable surface
-          text that `am surface` and the UI tests read. */
-      }
-      <style>{globalCSS}</style>
     </div>
   );
 }

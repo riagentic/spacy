@@ -1,6 +1,6 @@
 // Cell tests — real `df`/`du` against a temp tree, so what passes here is what
 // the app does on a real disk (dep/aio/docs/testing/cell-testing.md).
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { testCell } from "aio/testing";
 import { disk } from "./cell.ts";
 
@@ -74,6 +74,20 @@ testCell(
   },
 );
 
+testCell(
+  disk,
+  "open/reveal: refuse anything but an absolute path",
+  async (t) => {
+    await t.expect.rejects(() => t.send.open("relative/dir"), /absolute path/);
+    await t.expect.rejects(() => t.send.reveal("--help"), /absolute path/);
+    await t.expect.rejects(
+      () => t.send.open(42 as unknown as string),
+      /absolute path/,
+    );
+    t.expect.state((s) => s.path === null && s.scanning === false);
+  },
+);
+
 testCell(disk, "cancel: back to the partition overview", async (t) => {
   const root = await fixture();
   await t.send.refresh();
@@ -87,11 +101,60 @@ testCell(disk, "cancel: back to the partition overview", async (t) => {
   await Deno.remove(root, { recursive: true });
 });
 
-Deno.test("cancel: a running scan is really aborted, not just hidden", async () => {
-  const { cancelScan, scanFolders } = await import("./disk.server.ts");
-  const scanning = scanFolders("/"); // minutes on a big disk
-  cancelScan();
-  assertEquals(await scanning, null); // superseded → no result, no error
+testCell(disk, "cancel: lands mid-scan and leaves at once", async (t) => {
+  await t.send.refresh();
+  const scanning = t.send.open("/"); // minutes on a big disk
+  // A user clicks Cancel only once "scanning …" is on screen. (A sync send in
+  // the SAME tick commits before open's first writes — docs/testing/cell-testing.md.)
+  while (!t.getState().scanning) await new Promise((r) => setTimeout(r, 1));
+  await t.send.cancel();
+  await scanning;
+  t.expect.state((s) =>
+    s.path === null && s.scanning === false && s.error === null
+  );
+});
+
+// Regression: the superseded call used to clear `scanning` because both calls
+// shared one path — the newer scan then showed "No sub-folders here." mid-run.
+testCell(
+  disk,
+  "open: same folder twice — the first never ends the second",
+  async (t) => {
+    await t.send.refresh();
+    const first = t.send.open("/");
+    const second = t.send.open("/");
+    await first;
+    t.expect.state((s) => s.scanning === true && s.path === "/");
+    await t.send.cancel();
+    await second;
+    t.expect.state((s) => s.scanning === false);
+  },
+);
+
+testCell(
+  disk,
+  "open: a path outside every partition is its own root",
+  async (t) => {
+    await t.send.open("/nonexistent-spacy-path");
+    t.expect.state((s) => s.mount === "/nonexistent-spacy-path");
+  },
+);
+
+Deno.test("scanFolders: an aborted scan kills du and rejects", async () => {
+  const { scanFolders } = await import("./disk.server.ts");
+  const abort = new AbortController();
+  const scanning = scanFolders("/", abort.signal); // minutes on a big disk
+  abort.abort();
+  await assertRejects(() => scanning);
+});
+
+Deno.test("revealInFileManager: refuses anything that is not a folder", async () => {
+  const { revealInFileManager } = await import("./disk.server.ts");
+  await assertRejects(
+    () => revealInFileManager("/nonexistent-spacy-path"),
+    Error,
+    "not a folder",
+  );
 });
 
 // The Safety kata (.katana/app.md), enforced mechanically: no source file of the
