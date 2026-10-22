@@ -6,7 +6,13 @@
 // method here that deletes, moves, truncates or writes anything — the only
 // verbs are measure (`refresh`, `open`) and show (`reveal`).
 import { cell, log, type MethodDraftMeta } from "aio";
-import { type Entry, mountOf, type Partition, TOP_N } from "./disk.ts";
+import {
+  type Entry,
+  isAbsolute,
+  mountOf,
+  type Partition,
+  TOP_N,
+} from "./disk.ts";
 
 type DiskState = {
   partitions: Partition[];
@@ -30,10 +36,10 @@ const initial: DiskState = {
 };
 
 /** Wire guard for every path argument: `am dispatch`, a WS client or an agent
- *  can send anything, and a leading `/` also rules out a `-flag` reaching `du`
- *  or `xdg-open` (dep/aio/docs/state/methods.md § Guarding the arguments). */
+ *  can send anything, and an absolute path (`/…` or `C:/…`) also rules out a
+ *  `-flag` reaching `du` or the opener (dep/aio/docs/state/methods.md § Guarding the arguments). */
 const absolutePath = (v: unknown): true | string =>
-  (typeof v === "string" && v.startsWith("/")) || "an absolute path";
+  (typeof v === "string" && isAbsolute(v)) || "an absolute path";
 
 const reason = (e: unknown): string =>
   e instanceof Error ? e.message : String(e);

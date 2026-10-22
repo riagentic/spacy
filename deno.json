@@ -7,6 +7,10 @@
     "targets": [
       "electron"
     ],
+    "platforms": [
+      "host"
+    ],
+    "electronRuntime": "online",
     "out": "dist"
   },
   "memory": {

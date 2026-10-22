@@ -1,11 +1,14 @@
 // The parsers and path math — pure in, pure out, no disk needed.
 import { assertEquals } from "@std/assert";
 import {
+  isAbsolute,
   isReclaimable,
   mountOf,
   parentOf,
   parseDf,
   parseDu,
+  parseMount,
+  parseWinDisks,
   trailOf,
 } from "./disk.ts";
 import { formatBytes, formatShare, share } from "./format.ts";
@@ -105,6 +108,134 @@ Deno.test("parseDu: honours the top-N cap", () => {
 Deno.test("parseDu: works at the filesystem root", () => {
   const out = "900\t/usr\n100\t/var\n1000\t/\n";
   assertEquals(parseDu(out, "/").map((e) => e.path), ["/usr", "/var"]);
+});
+
+Deno.test("parseDu: BSD du -k reports KiB", () => {
+  const out = "8\t/Users/me/a\n4\t/Users/me/b\n12\t/Users/me\n";
+  assertEquals(parseDu(out, "/Users/me", 10, 1024).map((e) => e.size), [
+    8192,
+    4096,
+  ]);
+});
+
+// macOS `mount` (Sonoma): sealed system, OS-internal volumes, the Data volume,
+// a mounted disk image, an external disk, a network share.
+const MOUNT = `/dev/disk3s1s1 on / (apfs, sealed, local, read-only, journaled)
+devfs on /dev (devfs, local, nobrowse)
+/dev/disk3s6 on /System/Volumes/VM (apfs, local, noexec, journaled, noatime, nobrowse)
+/dev/disk3s5 on /System/Volumes/Data (apfs, local, journaled, nobrowse, protect, root data)
+map auto_home on /System/Volumes/Data/home (autofs, automounted, nobrowse)
+/dev/disk5s1 on /Volumes/Installer (hfs, local, nodev, nosuid, read-only, noowners, quarantine, mounted by me)
+/dev/disk4s1 on /Volumes/My Disk (exfat, local, nodev, nosuid, noowners, mounted by me)
+//me@nas/share on /Volumes/share (smbfs, nodev, nosuid, mounted by me)
+`;
+
+Deno.test("parseMount: macOS volumes you can free space on", () => {
+  const vols = parseMount(MOUNT).filter((m) =>
+    isReclaimable({ ...m, total: 1, used: 0, free: 1 })
+  );
+  assertEquals(vols.map((m) => m.mount), [
+    "/System/Volumes/Data",
+    "/Volumes/My Disk",
+    "/Volumes/share",
+  ]);
+  assertEquals(vols[1], {
+    device: "/dev/disk4s1",
+    mount: "/Volumes/My Disk",
+    fstype: "exfat",
+  });
+});
+
+Deno.test("parseWinDisks: fixed, removable and network drives as C:/", () => {
+  const json = JSON.stringify([
+    {
+      DeviceID: "C:",
+      FileSystem: "NTFS",
+      Size: 1000,
+      FreeSpace: 400,
+      DriveType: 3,
+    },
+    {
+      DeviceID: "D:",
+      FileSystem: "CDFS",
+      Size: 700,
+      FreeSpace: 0,
+      DriveType: 5,
+    },
+    {
+      DeviceID: "E:",
+      FileSystem: null,
+      Size: null,
+      FreeSpace: null,
+      DriveType: 2,
+    },
+    {
+      DeviceID: "Z:",
+      FileSystem: "NTFS",
+      Size: 50,
+      FreeSpace: 5,
+      DriveType: 4,
+    },
+  ]);
+  const parts = parseWinDisks(json);
+  assertEquals(parts.map((p) => p.mount), ["C:/", "Z:/"]);
+  assertEquals(parts[0], {
+    device: "C:",
+    fstype: "NTFS",
+    mount: "C:/",
+    total: 1000,
+    used: 600,
+    free: 400,
+  });
+  // a single disk arrives as an object, not an array
+  assertEquals(parseWinDisks(JSON.stringify(JSON.parse(json)[0])).length, 1);
+});
+
+Deno.test("Windows paths: drive roots compose like /", () => {
+  const out = "500\tC:/Users\n200\tC:/Windows\n";
+  assertEquals(parseDu(out, "C:/").map((e) => e.path), [
+    "C:/Users",
+    "C:/Windows",
+  ]);
+  assertEquals(
+    mountOf(
+      "C:/Users/me",
+      parseWinDisks(
+        JSON.stringify({
+          DeviceID: "C:",
+          FileSystem: "NTFS",
+          Size: 9,
+          FreeSpace: 1,
+          DriveType: 3,
+        }),
+      ),
+    ),
+    "C:/",
+  );
+  assertEquals(parentOf("C:/Users/me", "C:/"), "C:/Users");
+  assertEquals(parentOf("C:/Users", "C:/"), "C:/");
+  assertEquals(parentOf("C:/", "C:/"), null);
+  assertEquals(trailOf("C:/Users/me", "C:/").map((s) => s.path), [
+    "C:/",
+    "C:/Users",
+    "C:/Users/me",
+  ]);
+});
+
+Deno.test("isAbsolute: POSIX and drive roots, never a flag or relative", () => {
+  assertEquals(["/", "/home", "C:/", "d:/x"].map(isAbsolute), [
+    true,
+    true,
+    true,
+    true,
+  ]);
+  assertEquals(["-rf", "home", "C:", "C:x", ""].map(isAbsolute), [
+    false,
+    false,
+    false,
+    false,
+    false,
+  ]);
 });
 
 const PARTS = parseDf(DF);

@@ -4,7 +4,7 @@
   Pick a partition → the 10 biggest folders → click to drill in → open it in your file manager.
 </p>
 <p align="center">
-  <code>v0.1.1</code> · Linux desktop · built on <a href="https://github.com/riagentic/aio">aio</a> · <a href="LICENSE">MIT</a>
+  <code>v0.1.1</code> · Linux · macOS · Windows · built on <a href="https://github.com/riagentic/aio">aio</a> · <a href="LICENSE">MIT</a>
 </p>
 
 ![spacy](docs/screenshot.png)
@@ -19,9 +19,9 @@
   manager
 - 👀 Only lists partitions you can actually free space on: kernel/pseudo mounts,
   snap & AppImage bundles, ISO images and encrypted overlays are hidden
-- 🔒 **Read-only by construction.** `df`, `du` and `xdg-open` are the only
-  things it ever runs — a test fails the build if any source file could delete,
-  move or write
+- 🔒 **Read-only by construction.** It only measures (`df`/`du`, or the OS
+  equivalent) and opens your file manager — a test fails the build if any source
+  file could delete, move or write
 
 ## 🚀 Run it
 
@@ -39,7 +39,8 @@ git clone https://github.com/riagentic/spacy && cd spacy
 am fix && deno task dev
 ```
 
-Needs GNU `df`/`du` and `xdg-open` (any Linux desktop).
+Linux needs GNU `df`/`du` and `xdg-open` (any desktop); macOS and Windows need
+nothing extra.
 
 ## 🛠 Develop
 

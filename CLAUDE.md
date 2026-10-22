@@ -15,8 +15,12 @@ code in this repository.
   overlays are dropped. Unlocked LUKS (`/dev/mapper/*` + a normal fs) stays: it
   is ordinary storage. `free === 0` only disqualifies FUSE mounts, so a
   genuinely full disk still shows.
-- "File Manager" per row → `xdg-open` (Cinnamon → nemo)
-- 🔒 **Read-only by construction.** Only `df`, `du`, `xdg-open` ever run;
+- "File Manager" per row → aio `openExternal` (Linux `xdg-open` → nemo, macOS
+  Finder, Windows Explorer)
+- 🖥️ Linux (`df`/`du`), macOS (`mount` + statfs, BSD `du`), Windows
+  (`Get-CimInstance`, a directory walk). Paths are `/` everywhere; a drive root
+  is `C:/`.
+- 🔒 **Read-only by construction.** Only measure/show commands ever run;
   `src/cell.test.ts` fails the build if any source file reaches for a
   destructive API.
 
@@ -48,15 +52,15 @@ authority — `docs/basics/pitfalls.md`, `docs/state/`,
 
 One state model drives server, persistence, and UI:
 
-| File                      | Role                                                                                                                                            |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/disk.ts`             | Pure domain — `parseDf`/`parseDu`, `mountOf`/`parentOf`/`trailOf`. No IO, browser-safe.                                                         |
-| `src/disk.server.ts`      | The only IO: `df`, `du`, `xdg-open`. **Dynamic-imported** from cell methods so it never enters the browser bundle (`docs/build/imports.md` §2). |
-| `src/cell.ts`             | `disk` cell — `refresh`/`open`/`reveal`/`cancel`. `persist: "none"`, `cancelOn`, `long`, `args`.                                                |
-| `src/App.tsx` + `src/ui/` | Presentational components (props in, callbacks out) + `theme.ts`. Framework mounts `App.tsx`.                                                   |
-| `src/app.ts`              | Entry — `aio.run({ appId, ui: {…}, onStart: disk.refresh })`.                                                                                   |
-| `src/client.ts`           | Thin CLI client over WS (`dev:remote:cli`), from the template.                                                                                  |
-| `src/icon.svg` → `.png`   | App icon. aio reads only the 512 px PNG; re-render: `inkscape src/icon.svg -w 512 -h 512 -o src/icon.png`.                                      |
+| File                      | Role                                                                                                                            |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `src/disk.ts`             | Pure domain — `parseDf`/`parseDu`, `mountOf`/`parentOf`/`trailOf`. No IO, browser-safe.                                         |
+| `src/disk.server.ts`      | The only IO, per OS. **Dynamic-imported** from cell methods so it never enters the browser bundle (`docs/build/imports.md` §2). |
+| `src/cell.ts`             | `disk` cell — `refresh`/`open`/`reveal`/`cancel`. `persist: "none"`, `cancelOn`, `long`, `args`.                                |
+| `src/App.tsx` + `src/ui/` | Presentational components (props in, callbacks out) + `theme.ts`. Framework mounts `App.tsx`.                                   |
+| `src/app.ts`              | Entry — `aio.run({ appId, ui: {…}, onStart: disk.refresh })`.                                                                   |
+| `src/client.ts`           | Thin CLI client over WS (`dev:remote:cli`), from the template.                                                                  |
+| `src/icon.svg` → `.png`   | App icon. aio reads only the 512 px PNG; re-render: `inkscape src/icon.svg -w 512 -h 512 -o src/icon.png`.                      |
 
 Flow: method call → reduce (immer draft) → broadcast delta to clients → effects.
 JSX is aio's own AIR renderer (`jsxImportSource: "aio"`), not React.
