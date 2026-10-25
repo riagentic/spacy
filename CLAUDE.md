@@ -45,7 +45,7 @@ fresh clone run `am fix` once.
 
 ## 🏗️ Architecture
 
-Framework lives at `dep/aio` → `~/.local/lib/aio-versions/v1.0.23-beta` (pinned
+Framework lives at `dep/aio` → `~/.local/lib/aio-versions/v1.0.25-beta` (pinned
 by `aioVersion` in `deno.json`). Its own `CLAUDE.md` and `docs/` there are the
 authority — `docs/basics/pitfalls.md`, `docs/state/`,
 `docs/testing/ui-testing.md`, `docs/clients/electron.md`.
